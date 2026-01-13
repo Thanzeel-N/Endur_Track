@@ -1,0 +1,5 @@
+**/AppData/**
+C:/Users/**/AppData/**
+C:\Users\**\AppData\**
+**/*.tmp
+**/*.log
