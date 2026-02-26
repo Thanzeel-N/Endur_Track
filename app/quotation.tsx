@@ -4,7 +4,8 @@ import * as Print from "expo-print";
 import { useLocalSearchParams } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { File, Directory, Paths } from "expo-file-system";
-import React, { useEffect, useState } from 'react';
+import * as ImageManipulator from "expo-image-manipulator";
+import React, { useEffect, useState, useRef} from 'react';
 import {
   Image,
   Pressable,
@@ -15,8 +16,9 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  ViewStyle,
 } from "react-native";
-import { quotationHTML, QuotationItem } from "../utils/pdf";
+import { MaterialItem, quotationHTML, QuotationItem } from "../utils/pdf";
 
 /* ===== THEME COLORS ===== */
 const lightColors = {
@@ -112,6 +114,9 @@ const QuotationScreen = () => {
   const [client, setClient] = useState("");
   const [project, setProject] = useState("");
   const [coverPoster, setCoverPoster] = useState<string | null>("");
+  const [items, setItems] = useState<QuotationItem[]>([{ desc: "", qty: 1, rate: 0 }]);
+
+  const [materials, setMaterials] = useState<MaterialItem[]>([]);
 
   const [message, setMessage] = useState(DEFAULT_TEMPLATE.message);
   const [standardMethod, setStandardMethod] = useState(DEFAULT_TEMPLATE.standardmethod);
@@ -126,6 +131,12 @@ const QuotationScreen = () => {
     country === 'India' ? 18 : 5
   );
 
+  const clientRef = useRef<TextInput>(null);
+  const projectRef = useRef<TextInput>(null);
+  const consultantRef = useRef<TextInput>(null);
+  const plotRef = useRef<TextInput>(null);
+  const quotationRef = useRef<TextInput>(null);
+  const durationRef = useRef<TextInput>(null);
 // When country changes → reset to default if wanted
   useEffect(() => {
     setTaxRatePercent(country === 'India' ? 18 : 5);
@@ -299,7 +310,7 @@ const QuotationScreen = () => {
     plotNo,
     quotationNo,
     duration,
-    QuotationItem,
+    items,
     message,
     standardMethod,
     conditions,
@@ -323,19 +334,18 @@ const QuotationScreen = () => {
       base64: true, // ✅ IMPORTANT
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      setCoverPoster(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    if (!result.canceled) {
+      const resizedBase64 = await resizeImageToBase64(result.assets[0].uri);
+
+      if (resizedBase64) {
+        setCoverPoster(resizedBase64);
+      }
     }
   };
 
 
   /* ===== WORK ITEMS ===== */
-  const [items, setItems] = useState<QuotationItem[]>([{ desc: "", qty: 1, rate: 0 }]);
-
-  /* ===== COMMON MATERIALS ===== */
-  const [materials, setMaterials] = useState<
-  { name: string; description: string; images: string[] }[]
->([]);
+  
 
   const updateItem = (itemIndex: number, field: keyof QuotationItem, value: any) => {
     setItems(prevItems =>
@@ -384,6 +394,31 @@ const QuotationScreen = () => {
     setMaterials(updated);
   };
 
+  
+
+  const resizeImageToBase64 = async (uri: string) => {
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [
+          {
+            resize: { width: 1000 }, // adjust width (800–1200 recommended)
+          },
+        ],
+        {
+          compress: 0.6, // 0.5–0.7 best balance
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        }
+      );
+
+      return `data:image/jpeg;base64,${result.base64}`;
+    } catch (error) {
+      console.log("Resize error:", error);
+      return null;
+    }
+  };
+
   const pickMaterialImage = async (index: number) => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -397,13 +432,17 @@ const QuotationScreen = () => {
       base64: true,           // ← Add this line (critical!)
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      const updated = [...materials];
-      updated[index].images.push(base64Image);
-      setMaterials(updated);
+    if (!result.canceled) {
+      const resizedBase64 = await resizeImageToBase64(result.assets[0].uri);
+
+      if (resizedBase64) {
+        const updated = [...materials];
+        updated[index].images.push(resizedBase64);
+        setMaterials(updated);
+      }
     }
 };
+
 
   const removeMaterialImage = (materialIndex: number, imageIndex: number) => {
     const updated = [...materials];
@@ -689,22 +728,26 @@ const QuotationScreen = () => {
 
         {/* Client & Project Info */}
         <Text style={{ color: COLORS.text }}>Client Name</Text>
-        <TextInput value={client} onChangeText={setClient} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={client} onChangeText={setClient} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder}returnKeyType="next"blurOnSubmit={false}onSubmitEditing={() => projectRef.current?.focus()} />
 
         <Text style={{ color: COLORS.text }}>Project Name</Text>
-        <TextInput value={project} onChangeText={setProject} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 20 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={project} onChangeText={setProject} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 20 }} placeholderTextColor={COLORS.placeholder} ref={projectRef} returnKeyType="next"blurOnSubmit={false}onSubmitEditing={() => consultantRef.current?.focus()} />
+
 
         <Text style={{ color: COLORS.text }}>Consultants / Main Contractor</Text>
-        <TextInput value={consultant} onChangeText={setConsultant} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={consultant} onChangeText={setConsultant} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} ref={consultantRef} returnKeyType="next"blurOnSubmit={false}onSubmitEditing={() => plotRef.current?.focus()} />
+
 
         <Text style={{ color: COLORS.text }}>Plot No</Text>
-        <TextInput value={plotNo} onChangeText={setPlotNo} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={plotNo} onChangeText={setPlotNo} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} ref={plotRef} returnKeyType="next"blurOnSubmit={false}onSubmitEditing={() => quotationRef.current?.focus()} />
+
 
         <Text style={{ color: COLORS.text }}>Quotation No</Text>
-        <TextInput value={quotationNo} onChangeText={setQuotationNo} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={quotationNo} onChangeText={setQuotationNo} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} ref={quotationRef} returnKeyType="next"blurOnSubmit={false}onSubmitEditing={() => durationRef.current?.focus()} />
+
 
         <Text style={{ color: COLORS.text }}>Duration Time</Text>
-        <TextInput value={duration} onChangeText={setDuration} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} />
+        <TextInput value={duration} onChangeText={setDuration} style={{ borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.inputBg, color: COLORS.text, padding: 8, marginBottom: 10 }} placeholderTextColor={COLORS.placeholder} ref={durationRef} returnKeyType="done"/>
 
         {/* Message */}
         <Text style={{ color: COLORS.text, fontWeight: "bold" }}>Message to Main Contractor</Text>
@@ -949,7 +992,7 @@ const QuotationScreen = () => {
   );
 };
 
-const styles = {
+const styles: { removeBtn: ViewStyle } = {
   removeBtn: {
     position: "absolute",
     top: 6,

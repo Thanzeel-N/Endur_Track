@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
+import { Directory, File, Paths } from "expo-file-system";
 import * as Print from 'expo-print';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { File, Directory, Paths } from "expo-file-system";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
   Alert,
   Pressable,
@@ -30,6 +31,7 @@ const MATERIALS = [
   { name: 'Grid Ceiling', rate: 0 },
   { name: 'Aluminium Grid Ceiling', rate: 0 },
   { name: 'Cement Board', rate: 0 },
+  { name: 'Wood Frame', rate: 0 },
   { name: 'Other', rate: 0 },
 ];
 
@@ -78,6 +80,29 @@ export default function Measurement() {
     extraExpensesCost: 0,
     totalCost: 0,
   }]);
+
+  // Area refs
+  const areaTitleRefs = useRef<TextInput[]>([]);
+  const areaLengthRefs = useRef<TextInput[]>([]);
+  const areaWidthRefs = useRef<TextInput[]>([]);
+
+  // Attached room refs
+  const attachedTitleRefs = useRef<{ [key: string]: TextInput }>({});
+  const attachedLengthRefs = useRef<{ [key: string]: TextInput }>({});
+  const attachedWidthRefs = useRef<{ [key: string]: TextInput }>({});
+
+  // Bulk cutting refs
+  const bulkNameRefs = useRef<{ [key: string]: TextInput }>({});
+  const bulkLengthRefs = useRef<{ [key: string]: TextInput }>({});
+  const bulkRunsRefs = useRef<{ [key: string]: TextInput }>({});
+  const bulkRateRefs = useRef<{ [key: string]: TextInput }>({});
+
+  // Other custom refs
+  const otherNameRefs = useRef<{ [key: string]: TextInput }>({});
+  const otherLengthRefs = useRef<{ [key: string]: TextInput }>({});
+  const otherRunsRefs = useRef<{ [key: string]: TextInput }>({});
+  const otherRateRefs = useRef<{ [key: string]: TextInput }>({}); 
+    
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
@@ -213,7 +238,7 @@ export default function Measurement() {
     });
 
     const baseCost = totalSqft * a.materialRate;
-
+    
     let extrasCost = 0;
     ADDITIONALS.forEach(ex => {
       if (!a.additionals[ex.key]) return;
@@ -248,7 +273,7 @@ export default function Measurement() {
       }
     });
 
-    const extraExpensesCost = a.extraExpenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+    const extraExpensesCost = a.extraExpenses.reduce((sum, exp:any) => sum + Number(exp.amount || 0), 0);
 
     a.area = totalSqft + attachedSqft;
     a.totalSqft=totalSqft;
@@ -876,7 +901,18 @@ const generatePDF = async () => {
 
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={{ paddingBottom: 80 }}>
+    <KeyboardAvoidingView
+    style={styles.page}
+    behavior={Platform.OS === "ios" ? "padding" : undefined}
+    keyboardVerticalOffset={80}
+  >
+    <KeyboardAwareScrollView
+      style={{flex:1}}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      enableOnAndroid={true}
+      extraScrollHeight={120}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.mode}>
         {isEdit ? '✏️ Edit Measurement' : ' New Measurement'}
       </Text>
@@ -923,6 +959,10 @@ const generatePDF = async () => {
                     </View>
 
           <TextInput
+            ref={ref => areaTitleRefs.current[i] = ref!}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => areaLengthRefs.current[i]?.focus()}
             placeholder="Area name (e.g. Master Bedroom)"
             placeholderTextColor="#000000"
             value={a.title}
@@ -931,6 +971,10 @@ const generatePDF = async () => {
           />
 
           <TextInput
+            ref={ref => areaLengthRefs.current[i] = ref!}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => areaWidthRefs.current[i]?.focus()}
             placeholder="Length (m)"
             placeholderTextColor="#000000"
             keyboardType="numeric"
@@ -940,6 +984,9 @@ const generatePDF = async () => {
           />
 
           <TextInput
+            ref={ref => areaWidthRefs.current[i] = ref!}
+            returnKeyType="done"
+            blurOnSubmit={false}
             placeholder="Width (m)"
             placeholderTextColor="#000000"
             keyboardType="numeric"
@@ -1002,91 +1049,129 @@ const generatePDF = async () => {
             Attached Rooms / Sections
           </Text>
 
-          {a.attachedRooms.map((room:any, roomIdx) => (
-            <View key={roomIdx} style={styles.attachedRoomCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontWeight: '600', color: '#1976d2' }}>Attached {roomIdx + 1}</Text>
-                <Pressable onPress={() => removeAttachedRoom(i, roomIdx)}>
-                  <Text style={{ color: 'red', fontSize: 20 }}>×</Text>
-                </Pressable>
-              </View>
+          {a.attachedRooms.map((room: any, roomIdx) => {
 
-              <TextInput
-                placeholder="Name (e.g. Bathroom, Dressing)"
-                placeholderTextColor="#000000"
-                value={room.title}
-                onChangeText={v => updateAttachedRoom(i, roomIdx, 'title', v)}
-                style={styles.input}
-              />
+            const key = `${i}-${roomIdx}`; // unique key for refs
 
-              <TextInput
-                placeholder="Length (m)"
-                placeholderTextColor="#000000"
-                keyboardType="numeric"
-                value={room.length}
-                onChangeText={v => updateAttachedRoom(i, roomIdx, 'length', v)}
-                style={styles.input}
-              />
+            return (
+              <View key={key} style={styles.attachedRoomCard}>
 
-              <TextInput
-                placeholder="Width (m)"
-                placeholderTextColor="#000000"
-                keyboardType="numeric"
-                value={room.width}
-                onChangeText={v => updateAttachedRoom(i, roomIdx, 'width', v)}
-                style={styles.input}
-              />
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8
+                }}>
+                  <Text style={{ fontWeight: '600', color: '#1976d2' }}>
+                    Attached {roomIdx + 1}
+                  </Text>
 
-              <Text style={styles.label}>Material</Text>
-              <View style={styles.pickerBox}>
-                <Picker
-                  selectedValue={room.material}
-                  onValueChange={v => updateAttachedRoom(i, roomIdx, 'material', v)}
-                  style={{ color: '#000' }}
-                >
-                  {MATERIALS.map(m => (
-                    <Picker.Item key={m.name} label={m.name} value={m.name} />
-                  ))}
-                </Picker>
-              </View>
+                  <Pressable onPress={() => removeAttachedRoom(i, roomIdx)}>
+                    <Text style={{ color: 'red', fontSize: 20 }}>×</Text>
+                  </Pressable>
+                </View>
 
-              {room.material === 'Other' && (
+                {/* NAME */}
                 <TextInput
-                  placeholder="Custom material name"
+                  ref={ref => attachedTitleRefs.current[key] = ref!}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => attachedLengthRefs.current[key]?.focus()}
+                  placeholder="Name (e.g. Bathroom, Dressing)"
                   placeholderTextColor="#000000"
-                  value={room.customMaterialName}
-                  onChangeText={v => updateAttachedRoom(i, roomIdx, 'customMaterialName', v)}
+                  value={room.title}
+                  onChangeText={v => updateAttachedRoom(i, roomIdx, 'title', v)}
                   style={styles.input}
                 />
-              )}
 
-              {room.material === 'Cement Board' && (
-                <>
-                  <Text style={styles.label}>Thickness (mm)</Text>
-                  <View style={styles.pickerBox}>
-                    <Picker
-                      selectedValue={room.thickness}
-                      onValueChange={v => updateAttachedRoom(i, roomIdx, 'thickness', Number(v))}
-                      style={{ color: '#000' }}
-                    >
-                      {THICKNESS.map(t => (
-                        <Picker.Item key={t.mm} label={`${t.mm} mm`} value={t.mm} />
-                      ))}
-                    </Picker>
-                  </View>
-                </>
-              )}
+                {/* LENGTH */}
+                <TextInput
+                  ref={ref => attachedLengthRefs.current[key] = ref!}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => attachedWidthRefs.current[key]?.focus()}
+                  placeholder="Length (m)"
+                  placeholderTextColor="#000000"
+                  keyboardType="numeric"
+                  value={room.length}
+                  onChangeText={v => updateAttachedRoom(i, roomIdx, 'length', v)}
+                  style={styles.input}
+                />
 
-              <TextInput
-                placeholder="Rate (₹/sqft)"
-                placeholderTextColor="#000000"
-                keyboardType="numeric"
-                value={String(room.materialRate)}
-                onChangeText={v => updateAttachedRoom(i, roomIdx, 'materialRate', Number(v))}
-                style={styles.input}
-              />
-            </View>
-          ))}
+                {/* WIDTH */}
+                <TextInput
+                  ref={ref => attachedWidthRefs.current[key] = ref!}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  placeholder="Width (m)"
+                  placeholderTextColor="#000000"
+                  keyboardType="numeric"
+                  value={room.width}
+                  onChangeText={v => updateAttachedRoom(i, roomIdx, 'width', v)}
+                  style={styles.input}
+                />
+
+                {/* MATERIAL */}
+                <Text style={styles.label}>Material</Text>
+                <View style={styles.pickerBox}>
+                  <Picker
+                    selectedValue={room.material}
+                    onValueChange={v => updateAttachedRoom(i, roomIdx, 'material', v)}
+                    style={{ color: '#000' }}
+                  >
+                    {MATERIALS.map(m => (
+                      <Picker.Item key={m.name} label={m.name} value={m.name} />
+                    ))}
+                  </Picker>
+                </View>
+
+                {/* CUSTOM MATERIAL */}
+                {room.material === 'Other' && (
+                  <TextInput
+                    placeholder="Custom material name"
+                    placeholderTextColor="#000000"
+                    value={room.customMaterialName}
+                    onChangeText={v => updateAttachedRoom(i, roomIdx, 'customMaterialName', v)}
+                    style={styles.input}
+                  />
+                )}
+
+                {/* THICKNESS */}
+                {room.material === 'Cement Board' && (
+                  <>
+                    <Text style={styles.label}>Thickness (mm)</Text>
+                    <View style={styles.pickerBox}>
+                      <Picker
+                        selectedValue={room.thickness}
+                        onValueChange={v =>
+                          updateAttachedRoom(i, roomIdx, 'thickness', Number(v))
+                        }
+                        style={{ color: '#000' }}
+                      >
+                        {THICKNESS.map(t => (
+                          <Picker.Item key={t.mm} label={`${t.mm} mm`} value={t.mm} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </>
+                )}
+
+                {/* RATE */}
+                <TextInput
+                  placeholder="Rate (₹/sqft)"
+                  placeholderTextColor="#000000"
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  value={String(room.materialRate)}
+                  onChangeText={v =>
+                    updateAttachedRoom(i, roomIdx, 'materialRate', Number(v))
+                  }
+                  style={styles.input}
+                />
+
+              </View>
+            );
+          })}
 
           <Pressable style={styles.addExtraBtn} onPress={() => addAttachedRoom(i)}>
             <Text>+ Add Attached Room / Section</Text>
@@ -1119,164 +1204,233 @@ const generatePDF = async () => {
               {a.additionals[ex.key] && (
                 <>
                 {ex.key === 'otherCustom' ? (
-                  <View style={{ marginTop: 8 }}>
-                    {a.otherCustomEntries.map((entry:any, entryIdx) => (
-                      <View
-                        key={entryIdx}
-                        style={{
-                          backgroundColor: '#fef9f3',
-                          padding: 12,
-                          borderRadius: 8,
-                          marginBottom: 12,
-                          borderWidth: 1,
-                          borderColor: '#f5e8d3',
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <Text style={{ fontWeight: '600', color: '#8B6F47' }}>Custom Item #{entryIdx + 1}</Text>
-                          <Pressable onPress={() => removeOtherCustomEntry(i, entryIdx)}>
-                            <Text style={{ color: 'red', fontSize: 20 }}>×</Text>
-                          </Pressable>
-                        </View>
+                <View style={{ marginTop: 8 }}>
 
-                        {/* New: Name / Description field */}
-                        <TextInput
-                          placeholder="Name / Description (e.g. Cornice, Pelmet...)"
-                          placeholderTextColor="#555"
-                          value={entry.name}
-                          onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'name', v)}
-                          style={[styles.input, { marginBottom: 10 }]}
-                        />
+                {a.otherCustomEntries.map((entry:any, entryIdx) => {
 
-                        <TextInput
-                          placeholder="Length (meters)"
-                          placeholderTextColor="#000000"
-                          keyboardType="numeric"
-                          style={[styles.input, { marginBottom: 8 }]}
-                          value={entry.length}
-                          onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'length', v)}
-                        />
+                const key = `${i}-${entryIdx}`;
 
-                        <TextInput
-                          placeholder="No. of Runs / Pieces"
-                          placeholderTextColor="#000000"
-                          keyboardType="numeric"
-                          style={styles.input}
-                          value={entry.runs}
-                          onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'runs', v)}
-                        />
+                return (
+                <View
+                key={key}
+                style={{
+                backgroundColor: '#fef9f3',
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#f5e8d3',
+                }}
+                >
 
-                        <TextInput
-                          placeholder="Rate ₹/ft"
-                          placeholderTextColor="#000000"
-                          keyboardType="numeric"
-                          style={[styles.input, { marginTop: 8 }]}
-                          value={entry.rate || ''}
-                          onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'rate', v)}
-                        />
+                <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 10
+                }}>
+                <Text style={{ fontWeight: '600', color: '#8B6F47' }}>
+                Custom Item #{entryIdx + 1}
+                </Text>
 
-                        <View style={{ marginTop: 8 }}>
-                          <Text style={{ color: '#555', fontSize: 13 }}>
-                            Run Feet: {(Number(entry.length || 0) * 3.28 * Number(entry.runs || 0)).toFixed(2)} ft
-                          </Text>
-                          <Text style={{ color: '#2e7d32', fontWeight: '600', marginTop: 4 }}>
-                            Amount: ₹ {(
-                              Number(entry.length || 0) *
-                              3.28 *
-                              Number(entry.runs || 0) *
-                              Number(entry.rate || 0)
-                            ).toFixed(2)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                <Pressable onPress={() => removeOtherCustomEntry(i, entryIdx)}>
+                <Text style={{ color: 'red', fontSize: 20 }}>×</Text>
+                </Pressable>
+                </View>
 
-                    <Pressable
-                      style={[styles.addExtraBtn, { backgroundColor: '#fff8e1', borderColor: '#C19A6B' }]}
-                      onPress={() => addOtherCustomEntry(i)}
-                    >
-                      <Text style={{ color: '#8B6F47' }}>+ Add Custom Item</Text>
-                    </Pressable>
-                  </View>
 
-                  ):ex.key === 'bulkCutting' ? (
-                    <View style={{ marginTop: 8 }}>
-                      {a.bulkCuttingEntries.map((entry:any, entryIdx) => (
-                        <View
-                          key={entryIdx}
-                          style={{
-                            backgroundColor: '#f9f9f9',
-                            padding: 12,
-                            borderRadius: 8,
-                            marginBottom: 12,
-                            borderWidth: 1,
-                            borderColor: '#eee',
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <Text style={{ fontWeight: '600' }}>Bulk Cutting #{entryIdx + 1}</Text>
-                            <Pressable onPress={() => removeBulkCuttingEntry(i, entryIdx)}>
-                              <Text style={{ color: 'red', fontSize: 18 }}>×</Text>
-                            </Pressable>
-                          </View>
+                {/* NAME */}
+                <TextInput
+                ref={ref => otherNameRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => otherLengthRefs.current[key]?.focus()}
+                placeholder="Name / Description"
+                placeholderTextColor="#555"
+                value={entry.name}
+                onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'name', v)}
+                style={[styles.input, { marginBottom: 10 }]}
+                />
 
-                          <TextInput
-                            placeholder="Name"
-                            placeholderTextColor="#000000"
-                            style={[styles.input, { marginBottom: 8 }]}
-                            value={entry.name || ''}
-                            onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'name', v)}
-                          />
 
-                          <TextInput
-                            placeholder="Bulk Cutting Length (meters)"
-                            
-                            placeholderTextColor="#000000"
-                            keyboardType="numeric"
-                            style={[styles.input, { marginBottom: 8 }]}
-                            value={entry.length}
-                            onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'length', v)}
-                          />
+                {/* LENGTH */}
+                <TextInput
+                ref={ref => otherLengthRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => otherRunsRefs.current[key]?.focus()}
+                placeholder="Length (meters)"
+                keyboardType="numeric"
+                placeholderTextColor="#000000"
+                style={[styles.input, { marginBottom: 8 }]}
+                value={entry.length}
+                onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'length', v)}
+                />
 
-                          <TextInput
-                            placeholder="No. of Runs"
-                            placeholderTextColor="#000000"
-                            keyboardType="numeric"
-                            style={styles.input}
-                            value={entry.runs}
-                            onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'runs', v)}
-                          />
-                          <TextInput
-                            placeholder="Rate ₹/ft"
-                            placeholderTextColor="#000000"
-                            keyboardType="numeric"
-                            style={[styles.input, { marginTop: 8 }]}
-                            value={entry.rate || ''}
-                            onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'rate', v)}
-                          />
 
-                          <Text style={{ marginTop: 6, color: '#555', fontWeight: '600' }}>
-                            Amount: ₹ {(
-                              Number(entry.length || 0) *
-                              3.28 *
-                              Number(entry.runs || 0) *
-                              Number(entry.rate || 0)
-                            ).toFixed(2)}
-                          </Text>
+                {/* RUNS */}
+                <TextInput
+                ref={ref => otherRunsRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => otherRateRefs.current[key]?.focus()}
+                placeholder="No. of Runs"
+                keyboardType="numeric"
+                placeholderTextColor="#000000"
+                style={styles.input}
+                value={entry.runs}
+                onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'runs', v)}
+                />
 
-                          <Text style={{ marginTop: 6, color: '#555', fontWeight: '600' }}>
-                            Run Feet:{' '}
-                            {(
-                              Number(entry.length || 0) *
-                              3.28 *
-                              Number(entry.runs || 0)
-                            ).toFixed(2)}{' '}
-                            ft
-                          </Text>
-                        </View>
-                      ))}
 
-                      <Pressable
+                {/* RATE */}
+                <TextInput
+                ref={ref => otherRateRefs.current[key] = ref!}
+                returnKeyType="done"
+                placeholder="Rate ₹/ft"
+                keyboardType="numeric"
+                placeholderTextColor="#000000"
+                style={[styles.input, { marginTop: 8 }]}
+                value={entry.rate || ''}
+                onChangeText={v => updateOtherCustomEntry(i, entryIdx, 'rate', v)}
+                />
+
+
+                <View style={{ marginTop: 8 }}>
+                <Text style={{ color: '#555', fontSize: 13 }}>
+                Run Feet: {(Number(entry.length || 0) * 3.28 * Number(entry.runs || 0)).toFixed(2)} ft
+                </Text>
+
+                <Text style={{ color: '#2e7d32', fontWeight: '600', marginTop: 4 }}>
+                Amount: ₹ {(Number(entry.length || 0) *
+                3.28 *
+                Number(entry.runs || 0) *
+                Number(entry.rate || 0)).toFixed(2)}
+                </Text>
+                </View>
+
+                </View>
+                );
+
+                })}
+
+
+                <Pressable
+                style={[styles.addExtraBtn, { backgroundColor: '#fff8e1', borderColor: '#C19A6B' }]}
+                onPress={() => addOtherCustomEntry(i)}
+                >
+                <Text style={{ color: '#8B6F47' }}>+ Add Custom Item</Text>
+                </Pressable>
+
+                </View>
+
+                ) : ex.key === 'bulkCutting' ? (
+
+                <View style={{ marginTop: 8 }}>
+
+                {a.bulkCuttingEntries.map((entry:any, entryIdx) => {
+
+                const key = `${i}-${entryIdx}`;
+
+                return (
+                <View
+                key={key}
+                style={{
+                backgroundColor: '#f9f9f9',
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#eee',
+                }}
+                >
+
+                <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8
+                }}>
+                <Text style={{ fontWeight: '600' }}>
+                Bulk Cutting #{entryIdx + 1}
+                </Text>
+
+                <Pressable onPress={() => removeBulkCuttingEntry(i, entryIdx)}>
+                <Text style={{ color: 'red', fontSize: 18 }}>×</Text>
+                </Pressable>
+                </View>
+
+
+                {/* NAME */}
+                <TextInput
+                ref={ref => bulkNameRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => bulkLengthRefs.current[key]?.focus()}
+                placeholder="Name"
+                placeholderTextColor="#000"
+                style={[styles.input, { marginBottom: 8 }]}
+                value={entry.name || ''}
+                onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'name', v)}
+                />
+
+
+                {/* LENGTH */}
+                <TextInput
+                ref={ref => bulkLengthRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => bulkRunsRefs.current[key]?.focus()}
+                placeholder="Length"
+                keyboardType="numeric"
+                placeholderTextColor="#000"
+                style={[styles.input, { marginBottom: 8 }]}
+                value={entry.length}
+                onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'length', v)}
+                />
+
+
+                {/* RUNS */}
+                <TextInput
+                ref={ref => bulkRunsRefs.current[key] = ref!}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => bulkRateRefs.current[key]?.focus()}
+                placeholder="Runs"
+                keyboardType="numeric"
+                placeholderTextColor="#000"
+                style={styles.input}
+                value={entry.runs}
+                onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'runs', v)}
+                />
+
+
+                {/* RATE */}
+                <TextInput
+                ref={ref => bulkRateRefs.current[key] = ref!}
+                returnKeyType="done"
+                placeholder="Rate ₹/ft"
+                keyboardType="numeric"
+                placeholderTextColor="#000"
+                style={[styles.input, { marginTop: 8 }]}
+                value={entry.rate || ''}
+                onChangeText={v => updateBulkCuttingEntry(i, entryIdx, 'rate', v)}
+                />
+
+
+                <Text style={{ marginTop: 6, color: '#555', fontWeight: '600' }}>
+                Amount: ₹ {(Number(entry.length || 0) *
+                3.28 *
+                Number(entry.runs || 0) *
+                Number(entry.rate || 0)).toFixed(2)}
+                </Text>
+
+                </View>
+                );
+
+                })}
+
+                <Pressable
                         style={[styles.addExtraBtn, { backgroundColor: '#e8f5e9', borderColor: '#81c784' }]}
                         onPress={() => addBulkCuttingEntry(i)}
                       >
@@ -1292,9 +1446,11 @@ const generatePDF = async () => {
                       value={a.additionalInputs.spotlight}
                       onChangeText={v => updateAdditionalInput(i, 'spotlight', v)}
                     />
-                  ) : null}
+
+                ) : null}
+
                 </>
-              )}
+                )}
             </View>
           ))}
 
@@ -1437,12 +1593,13 @@ const generatePDF = async () => {
       <Pressable style={styles.pdfBtn} onPress={generatePDF}>
         <Text style={{ color: '#fff' }}>📄 Generate & Share PDF</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 16, backgroundColor: '#f5f7fa' },
+  page: { flex:1, backgroundColor: '#f5f7fa' },
   mode: { textAlign: 'center', fontWeight: 'bold', marginBottom: 12, fontSize: 16 },
   clientTitle: {
     fontSize: 22,

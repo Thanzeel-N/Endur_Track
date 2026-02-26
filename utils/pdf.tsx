@@ -1,4 +1,13 @@
-
+export interface MaterialItem {
+  name: string;
+  description: string;
+  images: string[];
+}
+export interface QuotationItem {
+  desc: string;
+  qty:number;
+  rate: number;
+}
 export interface QuotationData {
   coverPoster?: string | null;
   date: string;
@@ -9,7 +18,7 @@ export interface QuotationData {
   quotationNo?: string;
   duration?: string;
   items: QuotationItem[];
-  materials?:string[];
+  materials?:MaterialItem[];
   subtotal: number;
   vat: number;
   total: number;
@@ -54,7 +63,7 @@ export const quotationHTML = (data: QuotationData): string => {
 
   const materials = data.materials || [];
   // Materials section (unchanged)
-  const materialTableHTML = data.materials.length > 0 ? `
+  const materialTableHTML = materials.length > 0 ? `
     <div class="page-break"></div>
 
     <div class="area-card">
@@ -108,9 +117,10 @@ export const quotationHTML = (data: QuotationData): string => {
 
     </div>
   ` : "";
-
-  const conditionsList = data.conditions?.length > 0
-    ? data.conditions.map(c => `<li style="margin-bottom:6px;">${c}</li>`).join('')
+  
+  const conditions = data.conditions || [];
+  const conditionsList = conditions?.length > 0
+    ? conditions.map(c => `<li style="margin-bottom:6px;">${c}</li>`).join('')
     : '<li>No special conditions specified.</li>';
   
 
